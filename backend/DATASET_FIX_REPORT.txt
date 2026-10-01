@@ -1,0 +1,108 @@
+﻿
+
+==================================================================
+DATASET RETRIEVAL FIX - FINAL REPORT
+==================================================================
+
+PROBLEM SUMMARY:
+The dataset retrieval logic was incorrectly selecting 'IQ-OTH/NCCD' 
+instead of 'Chest CT-Scan Images Dataset' for the deep learning study.
+
+ROOT CAUSE:
+The system failed to distinguish between:
+- Direct evidence: 'The study used Chest CT-Scan Images Dataset'
+- Indirect evidence: 'development/analysis of the IQ-OTH/NCCD dataset'
+
+==================================================================
+SOLUTION IMPLEMENTED
+==================================================================
+
+1. PATTERN DETECTION (Lines ~300-320):
+   Added to DATASET_STRONG_INDIRECT_PATTERNS:
+   - /\bdevelopment\b[\s\S]{0,200}\b(?:of|and\s+analysis\s+of)\b[\s\S]{0,200}\b(?:dataset|data\s*set)\b/i
+   - /\banalysis\s+of\b[\s\S]{0,200}\b(?:dataset|data\s*set)\b/i
+   - /\b(?:dataset|data\s*set)\b[\s\S]{0,200}\b(?:development|analysis)\b/i
+
+2. SCORING PENALTIES (calculateDatasetEvidenceScore):
+   BEFORE:
+   - strongIndirectMatches: 0.28 per match (max 0.65) with direct evidence
+   - strongIndirectMatches: 0.45 per match (max 0.95) without direct evidence
+   
+   AFTER:
+   - strongIndirectMatches: 0.35 per match (max 0.75) with direct evidence
+   - strongIndirectMatches: 0.60 per match (max 0.98) without direct evidence
+
+3. SCORING PENALTIES (calculateDatasetDirectness):
+   BEFORE:
+   - strongIndirectMatches: 0.35 per match (max 0.80) with direct evidence
+   - strongIndirectMatches: 0.60 per match (max 0.95) without direct evidence
+   
+   AFTER:
+   - strongIndirectMatches: 0.42 per match (max 0.85) with direct evidence
+   - strongIndirectMatches: 0.70 per match (max 0.98) without direct evidence
+
+4. DIAGNOSTIC LOGGING:
+   Added [DATASET DEBUG] output showing:
+   - Chunk preview (first 500 chars)
+   - Pattern match counts
+   - All scoring components
+   - Evidence type classification
+
+==================================================================
+VALIDATION RESULTS
+==================================================================
+
+✅ Query 1: 'What dataset was used in the deep learning-based lung cancer study?'
+   Expected: Chest CT-Scan Images Dataset
+   Result:   Chest CT-Scan Images Dataset ✓
+   
+✅ Query 2: 'What dataset did the study obtain from Kaggle?'
+   Expected: Chest CT-Scan Images Dataset
+   Result:   Chest CT-Scan Images Dataset ✓
+   
+✅ Query 3: 'What dataset was used in LungPaper?'
+   Expected: LOTUS Dataset
+   Result:   LOTUS Dataset ✓
+
+==================================================================
+KEY DIAGNOSTIC OUTPUT (from server logs)
+==================================================================
+
+Chunk 19 (IQ-OTH/NCCD - Previously Won, Now Loses):
+  Similarity: 0.7717
+  DatasetEvidence: 0.2700  (was higher before fix)
+  DatasetDirectness: 0.3400  (was higher before fix)
+  Strong indirect markers: 1  (DETECTED by new patterns!)
+  Has current-study pattern: false
+  Final score: 0.8926  (loses to 1.0000)
+  
+Chunk 25 (Chest CT-Scan - Now Wins):
+  Similarity: 0.8035
+  DatasetEvidence: 1.0000  (maximum)
+  DatasetDirectness: 1.0000  (maximum)
+  Strong indirect markers: 0  (clean direct evidence)
+  Has acquisition pattern: true
+  Evidence type: acquisition
+  Final score: 1.0000  (WINS!)
+
+==================================================================
+FILES MODIFIED
+==================================================================
+
+C:\Users\ACER\Desktop\rag-pdf-app\backend\server.js
+  - Lines ~300-320: DATASET_STRONG_INDIRECT_PATTERNS
+  - Lines ~670-735: calculateDatasetEvidenceScore()
+  - Lines ~745-820: calculateDatasetDirectness()
+  - Lines ~1580-1620: [DATASET DEBUG] logging
+
+==================================================================
+VERIFICATION
+==================================================================
+
+Syntax check: ✓ PASSED (node --check server.js)
+Server start: ✓ PASSED
+Critical tests: ✓ PASSED (2/2 failing queries now correct)
+Existing tests: ✓ PASSED (LungPaper still returns LOTUS)
+
+==================================================================
+
