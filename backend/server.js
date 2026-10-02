@@ -7,6 +7,7 @@ import pg from 'pg';
 import { ChatGroq } from '@langchain/groq';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { InferenceClient } from '@huggingface/inference';
+import { setupAuthRoutes } from './auth/routes.js';
 
 const require = createRequire(import.meta.url);
 
@@ -3433,6 +3434,18 @@ app.get(
     }
   }
 );
+
+// ======================================================
+// Authentication Routes
+// ======================================================
+
+try {
+  setupAuthRoutes(app, pool);
+  console.log('[Auth] Authentication routes setup complete');
+} catch (error) {
+  console.error('[Auth] Failed to setup auth routes:', error);
+  console.error('[Auth] Error stack:', error.stack);
+}
 
 // ======================================================
 // Start Server
